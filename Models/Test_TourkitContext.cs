@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Test_Tourkit.Dto;
+using Test_Tourkit.DTO;
 
 namespace Test_Tourkit.Models
 {
@@ -84,6 +84,6 @@ namespace Test_Tourkit.Models
 
         partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 
-        public DbSet<Test_Tourkit.Dto.ProductDTO>? ProductDTO { get; set; }
+        public DbSet<Test_Tourkit.DTO.ProductDTO>? ProductDTO { get; set; }
     }
 }

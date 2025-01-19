@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Test_Tourkit.Dto;
+using Test_Tourkit.DTO;
 using Test_Tourkit.Models;
 
 namespace Test_Tourkit.Controllers
@@ -20,103 +15,63 @@ namespace Test_Tourkit.Controllers
         {
             _context = context;
         }
-
-        // GET: api/Products
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<ProductDTO>>> GetProducts()
+        [HttpGet("GetProducts")]
+        public async Task<IActionResult> GetProducts(string? productName, string? productCategory)
         {
-            var products = await _context.Products
-                .Include(p => p.ProductCategories) // Bao gồm mối quan hệ với ProductCategory
+            var productsQuery = _context.Products.Include(p => p.ProductCategories).AsQueryable();
+
+            if (!string.IsNullOrEmpty(productName) && !string.IsNullOrEmpty(productCategory))
+            {
+                productsQuery = productsQuery.Where(p => p.ProductName.Contains(productName) &&
+                                                          p.ProductCategories
+                                                              .Any(c => c.ProductCategory1.Contains(productCategory)));
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(productName))
+                {
+                    productsQuery = productsQuery.Where(p => p.ProductName.Contains(productName));
+                }
+
+                if (!string.IsNullOrEmpty(productCategory))
+                {
+                    productsQuery = productsQuery.Where(p => p.ProductCategories
+                        .Any(c => c.ProductCategory1.Contains(productCategory)));
+                }
+            }
+
+            var products = await productsQuery
                 .Select(p => new ProductDTO
                 {
                     ProductId = p.ProductId,
                     ProductName = p.ProductName,
                     Price = p.Price,
-                    DateAdded = p.DateAdded,
-                    ProductCategoryId = p.ProductCategories.FirstOrDefault().ProductCategoryId,
-                    ProductCategory1 = p.ProductCategories.FirstOrDefault().ProductCategory1
+                    ProductCategory1 = string.Join(", ", p.ProductCategories.Select(c => c.ProductCategory1)),
+                    DateAdded = p.DateAdded
                 })
                 .ToListAsync();
 
             return Ok(products);
         }
 
-        // GET: api/Products/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<Product>> GetProduct(int id)
-        {
-          if (_context.Products == null)
-          {
-              return NotFound();
-          }
-            var product = await _context.Products.FindAsync(id);
 
-            if (product == null)
-            {
-                return NotFound();
-            }
 
-            return product;
-        }
 
-        // PUT: api/Products/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutProduct(int id, Product product)
-        {
-            if (id != product.ProductId)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(product).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!ProductExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
-            return NoContent();
-        }
-
-        // POST: api/Products
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost]
-        public async Task<ActionResult<Product>> PostProduct(Product product)
-        {
-          if (_context.Products == null)
-          {
-              return Problem("Entity set 'Test_TourkitContext.Products'  is null.");
-          }
-            _context.Products.Add(product);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetProduct", new { id = product.ProductId }, product);
-        }
-
-        // DELETE: api/Products/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
-            if (_context.Products == null)
-            {
-                return NotFound();
-            }
-            var product = await _context.Products.FindAsync(id);
+            var product = await _context.Products
+                .Include(p => p.ProductCategories) // Bao gồm các liên kết
+                .FirstOrDefaultAsync(p => p.ProductId == id);
+
             if (product == null)
             {
                 return NotFound();
+            }
+
+            foreach (var category in product.ProductCategories.ToList())
+            {
+                product.ProductCategories.Remove(category);
             }
 
             _context.Products.Remove(product);
@@ -124,10 +79,125 @@ namespace Test_Tourkit.Controllers
 
             return NoContent();
         }
-
-        private bool ProductExists(int id)
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetProduct(int id)
         {
-            return (_context.Products?.Any(e => e.ProductId == id)).GetValueOrDefault();
+            var product = await _context.Products
+                .Include(p => p.ProductCategories) // Bao gồm thông tin danh mục
+                .FirstOrDefaultAsync(p => p.ProductId == id);
+
+            if (product == null)
+            {
+                return NotFound("Product not found.");
+            }
+
+            var productDto = new ProductDTO
+            {
+                ProductId = product.ProductId,
+                ProductName = product.ProductName,
+                Price = product.Price,
+                ProductCategory1 = string.Join(", ", product.ProductCategories.Select(c => c.ProductCategory1)),
+                ProductCategoryId = string.Join(", ", product.ProductCategories.Select(c => c.ProductCategoryId)),
+                DateAdded = product.DateAdded
+            };
+
+            return Ok(productDto);
         }
+
+
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateProduct(int id, [FromBody] ProductDTO productDto)
+        {
+
+            if (id != productDto.ProductId)
+            {
+                return BadRequest();
+            }
+
+            var product = await _context.Products
+                .Include(p => p.ProductCategories)
+                .FirstOrDefaultAsync(p => p.ProductId == id);
+
+            if (product == null)
+            {
+                return NotFound();
+            }
+
+            product.ProductName = productDto.ProductName;
+            product.Price = productDto.Price;
+            product.DateAdded = productDto.DateAdded;
+
+            var currentCategories = product.ProductCategories.ToList();
+            var newCategories = await _context.ProductCategories
+                .Where(pc => productDto.ProductCategoryId.Contains(pc.ProductCategoryId.ToString()))
+                .ToListAsync();
+
+            foreach (var category in currentCategories)
+            {
+                if (!newCategories.Contains(category))
+                {
+                    product.ProductCategories.Remove(category);
+                }
+            }
+
+            foreach (var category in newCategories)
+            {
+                if (!currentCategories.Contains(category))
+                {
+                    product.ProductCategories.Add(category);
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        [HttpPost("AddProduct")]
+        public async Task<IActionResult> AddProduct([FromBody] ProductDTO productDto)
+        {
+            if (string.IsNullOrEmpty(productDto.ProductName))
+            {
+                return BadRequest(new { message = "Tên sản phẩm không được để trống." });
+            }
+
+            if (await _context.Products.AnyAsync(p => p.ProductName == productDto.ProductName))
+            {
+                return BadRequest(new { message = "Tên sản phẩm đã tồn tại." });
+            }
+
+            if (productDto.DateAdded == null || productDto.DateAdded == DateTime.MinValue)
+            {
+                return BadRequest(new { message = "Ngày nhập không hợp lệ hoặc bị để trống." });
+            }
+
+            var product = new Product
+            {
+                ProductName = productDto.ProductName,
+                Price = productDto.Price,
+                DateAdded = productDto.DateAdded,
+            };
+
+            if (!string.IsNullOrEmpty(productDto.ProductCategoryId))
+            {
+                var categoryIds = productDto.ProductCategoryId.Split(',');
+                foreach (var categoryId in categoryIds)
+                {
+                    var category = await _context.ProductCategories.FindAsync(int.Parse(categoryId.Trim()));
+                    if (category != null)
+                    {
+                        product.ProductCategories.Add(category);
+                    }
+                }
+            }
+
+            _context.Products.Add(product);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetProduct), new { id = product.ProductId }, product);
+        }
+
+
     }
 }

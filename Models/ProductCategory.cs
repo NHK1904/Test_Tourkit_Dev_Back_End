@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace Test_Tourkit.Models
 {
@@ -13,7 +14,7 @@ namespace Test_Tourkit.Models
         public int ProductCategoryId { get; set; }
         public string ProductCategory1 { get; set; } = null!;
         public DateTime DateAdded { get; set; }
-
+        [JsonIgnore]
         public virtual ICollection<Product> Products { get; set; }
     }
 }

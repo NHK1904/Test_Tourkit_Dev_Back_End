@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace Test_Tourkit.Dto
+namespace Test_Tourkit.DTO
 {
     public class ProductDTO
     {
@@ -8,8 +8,9 @@ namespace Test_Tourkit.Dto
         public int ProductId { get; set; }
         public string ProductName { get; set; } = null!;
         public decimal Price { get; set; }
-        public DateTime DateAdded { get; set; }
-        public int ProductCategoryId { get; set; }
         public string ProductCategory1 { get; set; } = null!;
+        public DateTime DateAdded { get; set; }
+        public string ProductCategoryId { get; set; }
+
     }
 }
